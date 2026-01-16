@@ -1,0 +1,1 @@
+// Firebase logic has been removed. Using Local Storage for persistence.

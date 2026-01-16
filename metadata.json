@@ -1,0 +1,7 @@
+{
+  "name": "DormScout: AI Marketplace Agent",
+  "description": "An AI-powered marketplace agent for campus dorms that monitors feeds, verifies items via vision, negotiates prices autonomously, and manages logistics.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
