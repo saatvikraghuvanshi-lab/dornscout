@@ -7,33 +7,22 @@ import { AgentChat } from './components/AgentChat';
 import { AddItemModal } from './components/AddItemModal';
 import { UserChats } from './components/UserChats';
 import { ServicesHub } from './components/ServicesHub';
-import { MOCK_ITEMS } from './constants';
-import { Bot, LayoutDashboard, ShoppingBag, Settings, LogOut, ChevronRight, User, BookOpen, Mail, Lock, QrCode, Phone, AlertCircle, MessageSquare, Power, Briefcase, Bell } from 'lucide-react';
+import { Bot, LayoutDashboard, ShoppingBag, Settings, LogOut, MessageSquare, Briefcase, Bell } from 'lucide-react';
 
-const STORAGE_KEYS = {
-  USER: 'dormscout_current_user',
-  USERS: 'dormscout_all_users',
-  ITEMS: 'dormscout_items'
-};
+const STORAGE_KEY_USER = 'dormscout_user';
+const STORAGE_KEY_ITEMS = 'dormscout_items';
 
 const App: React.FC = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'chats' | 'marketplace' | 'profile' | 'services'>('dashboard');
-  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
-  const [signupStep, setSignupStep] = useState(1);
   const [errorNotification, setErrorNotification] = useState<string | null>(null);
   const [wishlistMatch, setWishlistMatch] = useState<string | null>(null);
 
-  const [signupData, setSignupData] = useState({ name: '', course: '', phone: '', email: '', password: '', upiQR: '' });
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
 
-  const [userProfile, setUserProfile] = useState<UserProfile>({
-    id: '', name: 'Student', course: '', campusId: '', email: '', phone: '', budgetLimit: 2000,
-    vibe: AgentVibe.SAVVY_SAVER, calendar: [], completedDeals: [], wishlist: [], priceAlerts: [], theme: 'dark'
-  });
-  
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [items, setItems] = useState<MarketplaceItem[]>([]);
   const [negotiatingItem, setNegotiatingItem] = useState<MarketplaceItem | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
@@ -43,19 +32,22 @@ const App: React.FC = () => {
     setTimeout(() => setErrorNotification(null), 5000);
   };
 
+  // Local Persistence Listeners
   useEffect(() => {
-    const initApp = () => {
-      const storedUser = localStorage.getItem(STORAGE_KEYS.USER);
-      if (storedUser) {
-        setUserProfile(JSON.parse(storedUser));
-        setIsLoggedIn(true);
-      }
-      const storedItems = localStorage.getItem(STORAGE_KEYS.ITEMS);
-      if (storedItems) setItems(JSON.parse(storedItems));
-      else { setItems(MOCK_ITEMS); localStorage.setItem(STORAGE_KEYS.ITEMS, JSON.stringify(MOCK_ITEMS)); }
-      setIsLoading(false);
-    };
-    initApp();
+    const savedUser = localStorage.getItem(STORAGE_KEY_USER);
+    if (savedUser) {
+      setUserProfile(JSON.parse(savedUser));
+      setIsLoggedIn(true);
+    }
+
+    const savedItems = localStorage.getItem(STORAGE_KEY_ITEMS);
+    if (savedItems) {
+      setItems(JSON.parse(savedItems));
+    } else {
+      setItems([]);
+    }
+    
+    setIsLoading(false);
   }, []);
 
   const validateEmail = (email: string) => {
@@ -70,68 +62,52 @@ const App: React.FC = () => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateEmail(loginEmail)) return;
-    const allUsers = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-    const user = allUsers.find((u: any) => u.email === loginEmail.toLowerCase().trim() && u.password === loginPassword);
-    if (user) {
-      const { password, ...profile } = user;
-      setUserProfile(profile);
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(profile));
-      setIsLoggedIn(true);
-    } else showError('Invalid credentials. Please try again.');
-  };
-
-  const handleSignupSubmit = () => {
-    if (!validateEmail(signupData.email)) return;
-    const allUsers = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-    const existingUser = allUsers.find((u: any) => u.email === signupData.email.toLowerCase().trim());
-    if (existingUser) {
-      showError('Account already exists. Returning to login page.');
-      setAuthMode('signin');
-      setLoginEmail(signupData.email);
-      return;
-    }
-    const userId = Math.random().toString(36).substr(2, 9);
-    const newProfile: UserProfile = {
-      id: userId, name: signupData.name, course: signupData.course, campusId: signupData.email.split('@')[0],
-      email: signupData.email.toLowerCase().trim(), phone: signupData.phone, budgetLimit: 2000,
-      vibe: AgentVibe.SAVVY_SAVER, calendar: [], completedDeals: [], wishlist: [], priceAlerts: [],
-      theme: 'dark', upiQR: signupData.upiQR
+    
+    // In local mode, any password works for existing or new mock accounts
+    const mockProfile: UserProfile = {
+      id: 'user-' + Math.random().toString(36).substr(2, 5),
+      name: loginEmail.split('@')[0],
+      course: 'B.Tech CS',
+      campusId: loginEmail.split('@')[0],
+      email: loginEmail,
+      phone: '9876543210',
+      budgetLimit: 5000,
+      vibe: AgentVibe.SAVVY_SAVER,
+      calendar: [],
+      completedDeals: [],
+      wishlist: [],
+      priceAlerts: [],
+      theme: 'dark'
     };
-    allUsers.push({ ...newProfile, password: signupData.password });
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(allUsers));
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newProfile));
-    setUserProfile(newProfile);
+    
+    setUserProfile(mockProfile);
     setIsLoggedIn(true);
+    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(mockProfile));
   };
 
-  const handleSignOut = () => { localStorage.removeItem(STORAGE_KEYS.USER); setIsLoggedIn(false); };
-  const handleLogOut = () => { localStorage.removeItem(STORAGE_KEYS.USER); setIsLoggedIn(false); };
+  const handleSignOut = () => {
+    setIsLoggedIn(false);
+    setUserProfile(null);
+    localStorage.removeItem(STORAGE_KEY_USER);
+  };
 
   const updateProfile = (newProfile: UserProfile) => {
     setUserProfile(newProfile);
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(newProfile));
-    const allUsers = JSON.parse(localStorage.getItem(STORAGE_KEYS.USERS) || '[]');
-    const userIdx = allUsers.findIndex((u: any) => u.id === newProfile.id);
-    if (userIdx !== -1) { allUsers[userIdx] = { ...allUsers[userIdx], ...newProfile }; localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(allUsers)); }
+    localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(newProfile));
   };
 
-  const addItem = (item: MarketplaceItem) => {
-    const updatedItems = [item, ...items];
+  const handleAddItem = (newItem: MarketplaceItem) => {
+    const updatedItems = [newItem, ...items];
     setItems(updatedItems);
-    localStorage.setItem(STORAGE_KEYS.ITEMS, JSON.stringify(updatedItems));
+    localStorage.setItem(STORAGE_KEY_ITEMS, JSON.stringify(updatedItems));
     
-    // Wishlist check
-    const match = userProfile.wishlist?.find(w => 
-      item.title.toLowerCase().includes(w.itemName.toLowerCase()) && 
-      (w.maxPrice === 0 || item.price <= w.maxPrice)
-    );
-    if (match) {
-      setWishlistMatch(item.title);
-      setTimeout(() => setWishlistMatch(null), 8000);
+    // Simple Wishlist Match Check
+    if (userProfile?.wishlist?.some(w => newItem.title.toLowerCase().includes(w.itemName.toLowerCase()))) {
+      setWishlistMatch(newItem.title);
     }
   };
 
-  const getThemeClasses = (theme: AppTheme) => {
+  const getThemeClasses = (theme: AppTheme = 'dark') => {
     switch (theme) {
       case 'midnight': return 'bg-slate-950 text-slate-100';
       case 'emerald': return 'bg-teal-950 text-emerald-50';
@@ -141,7 +117,7 @@ const App: React.FC = () => {
     }
   };
 
-  const getNavClasses = (theme: AppTheme) => {
+  const getNavClasses = (theme: AppTheme = 'dark') => {
     switch (theme) {
       case 'midnight': return 'bg-slate-900 border-slate-800';
       case 'emerald': return 'bg-teal-900 border-teal-800';
@@ -153,40 +129,27 @@ const App: React.FC = () => {
 
   if (isLoading) return <div className="min-h-screen bg-gray-950 flex items-center justify-center"><Bot size={48} className="text-blue-500 animate-bounce" /></div>;
 
-  if (!isLoggedIn) return (
-    <div className={`min-h-screen flex items-center justify-center p-4 ${getThemeClasses(userProfile.theme)} transition-colors duration-500`}>
+  if (!isLoggedIn || !userProfile) return (
+    <div className={`min-h-screen flex items-center justify-center p-4 ${getThemeClasses()} transition-colors duration-500`}>
       {errorNotification && <div className="fixed top-4 left-1/2 -translate-x-1/2 bg-red-600 text-white px-6 py-3 rounded-full z-[100] animate-in slide-in-from-top-4">{errorNotification}</div>}
-      <div className={`max-w-md w-full border rounded-3xl p-8 shadow-2xl relative overflow-hidden ${getNavClasses(userProfile.theme)}`}>
+      <div className={`max-w-md w-full border rounded-3xl p-8 shadow-2xl relative overflow-hidden ${getNavClasses()}`}>
         <div className="flex flex-col items-center mb-8">
           <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center transform -rotate-6 shadow-xl mb-4"><Bot size={40} className="text-white" /></div>
-          <h1 className="text-3xl font-black uppercase tracking-tighter">DormScout</h1>
-          <p className="text-gray-400 text-sm mt-1">Campus Arbitrator Hub</p>
+          <h1 className="text-3xl font-black uppercase tracking-tighter text-white">DormScout</h1>
+          <p className="text-gray-400 text-sm mt-1">Campus Agent Platform</p>
         </div>
-        {authMode === 'signin' ? (
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input required type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="MUJ Email" className={`w-full rounded-xl px-4 py-3 outline-none ${userProfile.theme === 'light' ? 'bg-stone-100 border' : 'bg-gray-800 border-gray-700 border'}`} />
-            <input required type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="Password" className={`w-full rounded-xl px-4 py-3 outline-none ${userProfile.theme === 'light' ? 'bg-stone-100 border' : 'bg-gray-800 border-gray-700 border'}`} />
-            <button type="submit" className="w-full bg-blue-600 text-white font-black py-4 rounded-xl shadow-xl hover:bg-blue-700 transition-all">Sign In</button>
-            <button type="button" onClick={() => setAuthMode('signup')} className="w-full text-xs font-bold text-gray-500 mt-2">Create Student Account</button>
-          </form>
-        ) : (
-          <div className="space-y-6">
-            {signupStep === 1 && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                <input value={signupData.name} onChange={e => setSignupData({...signupData, name: e.target.value})} placeholder="Full Name" className={`w-full rounded-xl px-4 py-3 outline-none ${userProfile.theme === 'light' ? 'bg-stone-100 border' : 'bg-gray-800 border-gray-700 border'}`} />
-                <input value={signupData.course} onChange={e => setSignupData({...signupData, course: e.target.value})} placeholder="Course (e.g. B.Tech)" className={`w-full rounded-xl px-4 py-3 outline-none ${userProfile.theme === 'light' ? 'bg-stone-100 border' : 'bg-gray-800 border-gray-700 border'}`} />
-                <button onClick={() => setSignupStep(2)} className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl flex items-center justify-center gap-2">Next <ChevronRight size={18}/></button>
-              </div>
-            )}
-            {signupStep === 2 && (
-              <div className="space-y-4 animate-in fade-in slide-in-from-right-4">
-                <input value={signupData.email} onChange={e => setSignupData({...signupData, email: e.target.value})} placeholder="MUJ Email" className={`w-full rounded-xl px-4 py-3 outline-none ${userProfile.theme === 'light' ? 'bg-stone-100 border' : 'bg-gray-800 border-gray-700 border'}`} />
-                <input type="password" value={signupData.password} onChange={e => setSignupData({...signupData, password: e.target.value})} placeholder="Password" className={`w-full rounded-xl px-4 py-3 outline-none ${userProfile.theme === 'light' ? 'bg-stone-100 border' : 'bg-gray-800 border-gray-700 border'}`} />
-                <button onClick={handleSignupSubmit} className="w-full bg-blue-600 text-white font-bold py-4 rounded-xl">Complete Setup</button>
-              </div>
-            )}
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Student Email</label>
+            <input required type="email" value={loginEmail} onChange={e => setLoginEmail(e.target.value)} placeholder="name@muj.manipal.edu" className="w-full bg-gray-800 border-gray-700 border rounded-xl px-4 py-3 outline-none text-white focus:border-blue-500" />
           </div>
-        )}
+          <div className="space-y-1">
+            <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 ml-1">Password</label>
+            <input required type="password" value={loginPassword} onChange={e => setLoginPassword(e.target.value)} placeholder="••••••••" className="w-full bg-gray-800 border-gray-700 border rounded-xl px-4 py-3 outline-none text-white focus:border-blue-500" />
+          </div>
+          <button type="submit" className="w-full bg-blue-600 text-white font-black py-4 rounded-xl shadow-xl hover:bg-blue-700 transition-all mt-4">Enter Platform</button>
+          <p className="text-[10px] text-center text-gray-500 font-bold uppercase tracking-tighter mt-4">Local Auth Mode Enabled</p>
+        </form>
       </div>
     </div>
   );
@@ -224,7 +187,6 @@ const App: React.FC = () => {
         </div>
         <div className={`p-4 border-t ${userProfile.theme === 'light' ? 'border-slate-100' : 'border-gray-800'} space-y-1`}>
           <button onClick={handleSignOut} className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-red-400 hover:bg-red-900/10 transition-colors font-bold text-xs"><LogOut size={16} /><span>Sign Out</span></button>
-          <button onClick={handleLogOut} className="w-full flex items-center gap-3 px-4 py-2 rounded-xl text-gray-500 hover:text-gray-300 transition-colors font-bold text-[10px]"><Power size={12} /><span>Log Out</span></button>
         </div>
       </nav>
       <main className="flex-1 overflow-y-auto p-4 md:p-8">
@@ -237,7 +199,7 @@ const App: React.FC = () => {
         </div>
       </main>
       {negotiatingItem && <AgentChat item={negotiatingItem} userProfile={userProfile} onClose={() => setNegotiatingItem(null)} />}
-      {isAddingItem && <AddItemModal onClose={() => setIsAddingItem(false)} onAdd={addItem} theme={userProfile.theme} currentUserId={userProfile.id} />}
+      {isAddingItem && <AddItemModal onClose={() => setIsAddingItem(false)} onAdd={handleAddItem} theme={userProfile.theme} currentUserId={userProfile.id} />}
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile, AgentVibe, AppTheme, WishlistItem, PriceAlert } from '../types';
-import { Settings, User as UserIcon, Palette, Sun, Moon, Cloud, Leaf, Flame, QrCode, BookOpen, Share2, Phone, CheckCircle, Mail, Edit3, Save, X, Heart, Bell, Plus, Trash2 } from 'lucide-react';
+import { Settings, User as UserIcon, Palette, Sun, Moon, Cloud, Leaf, Flame, QrCode, BookOpen, Share2, Phone, CheckCircle, Mail, Edit3, Save, X, Heart, Bell, Plus, Trash2, ExternalLink } from 'lucide-react';
 
 interface Props {
   profile: UserProfile;
@@ -50,20 +50,42 @@ export const Profile: React.FC<Props> = ({ profile, onUpdate }) => {
   };
 
   const handleShare = async () => {
+    // Determine the most reliable URL to share
+    let shareUrl = window.location.href;
+    
+    // If we're in a sandboxed/iframe environment, window.location.href might be 'about:srcdoc'
+    // which is an invalid URL for sharing. We try to find a valid base.
+    if (!shareUrl.startsWith('http')) {
+      // Fallback to the current origin if available, otherwise a default
+      shareUrl = window.origin.startsWith('http') ? window.origin : 'https://dormscout.app';
+    }
+
     const shareData = {
       title: 'DormScout',
       text: 'Check out the DormScout marketplace for students!',
-      url: window.location.href,
+      url: shareUrl,
     };
+
     try {
-      if (navigator.share) {
+      // Use Web Share API if available and the URL is "real"
+      if (navigator.share && shareUrl.startsWith('http')) {
         await navigator.share(shareData);
       } else {
-        await navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
+        // Fallback: Copy to clipboard
+        await navigator.clipboard.writeText(`${shareData.text} ${shareUrl}`);
         setShareFeedback(true);
         setTimeout(() => setShareFeedback(false), 2000);
       }
-    } catch (err) { console.error('Error sharing', err); }
+    } catch (err) {
+      // If sharing was cancelled or failed, copy to clipboard as final resort
+      try {
+        await navigator.clipboard.writeText(`${shareData.text} ${shareUrl}`);
+        setShareFeedback(true);
+        setTimeout(() => setShareFeedback(false), 2000);
+      } catch (clipboardErr) {
+        console.error('Sharing and clipboard fallback both failed:', clipboardErr);
+      }
+    }
   };
 
   return (
@@ -73,10 +95,22 @@ export const Profile: React.FC<Props> = ({ profile, onUpdate }) => {
           <Settings className="text-blue-500" />
           Student Profile
         </h2>
-        <button onClick={handleShare} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-lg active:scale-95">
-          {shareFeedback ? <CheckCircle size={18} /> : <Share2 size={18} />}
-          {shareFeedback ? 'Link Copied!' : 'Share App'}
-        </button>
+        <div className="flex gap-2">
+           <button 
+            onClick={() => window.open(window.location.href.startsWith('http') ? window.location.href : '#', '_blank')}
+            className={`p-2 rounded-xl border transition-all ${profile.theme === 'light' ? 'bg-stone-50 border-stone-200 text-stone-600 hover:bg-stone-100' : 'bg-gray-800 border-gray-700 text-gray-400 hover:text-white'}`}
+            title="Open in New Tab"
+          >
+            <ExternalLink size={20} />
+          </button>
+          <button 
+            onClick={handleShare} 
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-lg active:scale-95"
+          >
+            {shareFeedback ? <CheckCircle size={18} /> : <Share2 size={18} />}
+            {shareFeedback ? 'Link Copied!' : 'Share App'}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

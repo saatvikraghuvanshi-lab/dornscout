@@ -1,1 +1,8 @@
-// Firebase logic has been removed. Using Local Storage for persistence.
+/**
+ * Firebase has been removed as requested.
+ * The application now uses local state and localStorage for persistence.
+ */
+export const isConfigured = true;
+export const auth = null;
+export const db = null;
+export const storage = null;
